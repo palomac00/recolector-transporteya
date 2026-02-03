@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  scraper-324:
+    image: python:3.11-slim
+    volumes:
+      - ./data:/app/data
+    working_dir: /app
+    command: python scraper.py
+    restart: unless-stopped
