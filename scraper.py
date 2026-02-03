@@ -1,80 +1,52 @@
 #!/usr/bin/env python3
-import requests
-import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 import csv
-import json
+import time
 from datetime import datetime
+import os
 
-def parse_transporteya_js(js_content):
-    """Extrae datos 324 del main.dab66abd.js"""
+def scrape_real_324():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     
-    # Patrones para datos de líneas/paradas desde el JS minificado
-    patterns = {
-        'lines_324': r'"324"[^}]*?(?:"id"|"name"|"stops"|"vehicles")[^}]*?(?="ramal"[^}]*?5|6)',
-        'stop_calle622': r'"calle 622"[^}]*?"id"[^}]*?"coordinates?"[^}]*?',
-        'vehicles_324': r'"324"[^}]*?"lat"[^}]*?"lng"[^}]*?"eta?"[^}]*?',
-    }
+    driver = webdriver.Chrome(options=chrome_options)
     
-    data = {}
-    for key, pattern in patterns.items():
-        matches = re.findall(pattern, js_content, re.DOTALL | re.IGNORECASE)
-        data[key] = matches
-        print(f"📍 {key}: {len(matches)} matches")
-    
-    return data
-
-def fake_eta_for_324_ramal56():
-    """Genera datos simulados hasta tener parsing completo"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Simula datos realistas para Calle 622 ramal 5/6
-    arrivals = [
-        {"ramal": "324-5", "eta": "15:02", "distancia": "800m", "vehicle": "ABC123"},
-        {"ramal": "324-6", "eta": "15:07", "distancia": "1.2km", "vehicle": "DEF456"},
-    ]
-    
-    with open("data/324_ramal56.csv", "a", newline="") as f:
-        writer = csv.writer(f)
-        if f.tell() == 0:
-            writer.writerow(["timestamp", "parada", "ramal", "eta", "distancia", "vehicle"])
+    try:
+        print("🔍 Cargando app...")
+        driver.get("https://app.transporteya.com.ar/app/")
+        time.sleep(5)
         
-        for arrival in arrivals:
-            writer.writerow([
-                timestamp,
-                "Calle 622 y Colectora",
-                arrival["ramal"],
-                arrival["eta"],
-                arrival["distancia"],
-                arrival["vehicle"]
-            ])
-    
-    print("✅ Guardado CSV con datos simulados")
-    print("📊 arrivals:", arrivals)
-
-def download_main_js():
-    """Descarga el JS actualizado"""
-    url = "https://app.transporteya.com.ar/app/static/js/main.dab66abd.js"
-    resp = requests.get(url)
-    with open("main.js", "w") as f:
-        f.write(resp.text)
-    print("✅ main.js descargado - 1.8MB")
-    return resp.text
+        # Busca "324"
+        search_box = driver.find_element(By.CSS_SELECTOR, "input[placeholder*='buscar']")
+        search_box.send_keys("324")
+        time.sleep(3)
+        
+        # Extrae ETAs del mapa/lista
+        etas = driver.find_elements(By.CSS_SELECTOR, "[class*='eta'], [class*='arrival'], time")
+        print(f"📊 {len(etas)} llegadas encontradas")
+        
+        # Guarda CSV
+        os.makedirs("data", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        with open("data/324_real.csv", "a", newline="") as f:
+            writer = csv.writer(f)
+            if f.tell() == 0:
+                writer.writerow(["timestamp", "eta", "ramal", "distancia"])
+            
+            for eta in etas[:3]:  # Primeras 3
+                text = eta.text.strip()
+                if any(x in text for x in ['324', '5', '6']):
+                    writer.writerow([timestamp, text, "324-5/6", "live"])
+        
+        print("✅ Datos REALES guardados")
+        
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    import os
-    os.makedirs("data", exist_ok=True)
-    
-    print("🚍 Scraper 324 Ramal 5/6 Calle 622")
-    
-    # 1. Descarga JS actual
-    js_content = download_main_js()
-    
-    # 2. Parse datos (futuro)
-    data = parse_transporteya_js(js_content)
-    
-    # 3. Guarda CSV funcional YA
-    fake_eta_for_324_ramal56()
-    
-    print("\n🎉 Repo funcionando!")
-    print("📈 Ver data/324_ramal56.csv")
-    print("🔮 Próximo: parse real desde main.js")
+    scrape_real_324()
