@@ -2,64 +2,71 @@
 import requests
 import csv
 import json
+import time
 from datetime import datetime
-from time import sleep
+import re
 
 BASE_URL = "https://app.transporteya.com.ar"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+session = requests.Session()
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
     "Referer": "https://app.transporteya.com.ar/app/",
-    "Accept": "application/json"
-}
+    "Origin": "https://app.transporteya.com.ar"
+})
 
-def get_324_stops():
-    resp = requests.get(f"{BASE_URL}/api/line/324/stops", headers=HEADERS)
-    return resp.json()
-
-def get_stop_eta(stop_id):
-    url = f"{BASE_URL}/api/stop/{stop_id}/arrivals?line=324"
-    resp = requests.get(url, headers=HEADERS)
-    return resp.json()
-
-def find_parada(stops):
-    target = "calle 622".lower()
-    for stop in stops:
-        if target in stop.get("name", "").lower():
-            return stop["id"], stop["name"]
-    return None, "No encontrada"
-
-def scrape_324_ramal56():
-    stops = get_324_stops()
-    stop_id, stop_name = find_parada(stops)
+def safe_json(resp):
+    """Evita JSONDecodeError - debuggea primero"""
+    print(f"Status: {resp.status_code}")
+    print(f"Headers Content-Type: {resp.headers.get('content-type', 'N/A')}")
+    print(f"Response preview: {resp.text[:300]}...")
     
-    if not stop_id:
-        print("❌ Parada 'Calle 622' no encontrada")
+    if resp.status_code != 200:
+        print(f"❌ Error HTTP {resp.status_code}")
+        return None
+    
+    if 'application/json' not in resp.headers.get('content-type', ''):
+        print("❌ No es JSON")
+        return None
+    
+    try:
+        return resp.json()
+    except:
+        print("❌ JSON inválido")
+        return None
+
+def test_endpoints():
+    """Prueba TODOS los endpoints posibles"""
+    endpoints = [
+        "/api/lines?q=324",
+        "/api/search?q=324", 
+        "/api/lineas/324",
+        "/api/line/324",
+        "/api/routes/324"
+    ]
+    
+    for endpoint in endpoints:
+        print(f"\n🧪 Probando: {BASE_URL}{endpoint}")
+        resp = session.get(BASE_URL + endpoint)
+        data = safe_json(resp)
+        if data:
+            print(f"✅ FUNCIONA! {len(data)} items")
+            print(json.dumps(data, indent=2)[:500])
+            return data
+    return None
+
+def scrape_324():
+    print("🔍 Descubriendo endpoints reales...")
+    
+    # 1. Buscar líneas 324
+    lines_data = test_endpoints()
+    if not lines_data:
+        print("❌ No se encontraron endpoints de líneas")
         return
     
-    print(f"🚌 Scraping parada: {stop_name} (ID: {stop_id})")
-    eta_data = get_stop_eta(stop_id)
-    
-    # Filtra solo ramales 5/6
-    arrivals = [a for a in eta_data.get("arrivals", []) 
-                if any(ramal in a.get("route", "") for ramal in ["5", "6"])]
-    
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    with open("data/324_ramal56.csv", "a", newline="") as f:
-        writer = csv.writer(f)
-        if f.tell() == 0:  # Header
-            writer.writerow(["timestamp", "parada", "ramal", "eta", "distancia"])
-        
-        for arrival in arrivals:
-            writer.writerow([
-                timestamp,
-                stop_name,
-                arrival.get("route", ""),
-                arrival.get("eta", ""),
-                arrival.get("distance", "")
-            ])
-    
-    print(f"✅ Guardado {len(arrivals)} llegadas: {arrivals}")
+    # 2. TODO: extraer stops desde lines_data y filtrar ramal 5/6
+    print("✅ Endpoints encontrados - revisar output arriba")
+    print("\n📋 Próximo paso: copiar el endpoint que funcionó + buscar 'stops' en Network tab")
 
 if __name__ == "__main__":
-    scrape_324_ramal56()
+    scrape_324()
