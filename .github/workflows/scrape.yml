@@ -6,24 +6,21 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # ← ESTO ARREGLA EL 403
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
-      run: pip install requests
+        token: ${{ secrets.GITHUB_TOKEN }}  # ← Token con permisos
+
+    - uses: actions/setup-python@v5
+      with: python-version: '3.11'
       
-    - name: Create data dir & run scraper
-      run: |
-        mkdir -p data
-        python scraper.py
-        
-    - name: Commit data CSV
-      uses: stefanzweifel/git-auto-commit-action@v5
+    - run: pip install requests
+    - run: mkdir -p data
+    - run: python scraper.py
+      
+    - uses: stefanzweifel/git-auto-commit-action@v5
       with:
-        commit_message: "Update 324 ramal56 Calle 622 {{github.run_id}}"
-        file_pattern: data/*.csv
+        commit_message: "Update 324 ramal56 Calle 622"
+        file_pattern: data/*
