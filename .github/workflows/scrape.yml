@@ -1,0 +1,19 @@
+name: Scrape 324 Ramal 5/6
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Cada 5 minutos
+  workflow_dispatch:  # Manual trigger
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install requests
+    - run: mkdir -p data
+    - run: python scraper.py
+    - uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "Update 324 ramal 5/6 horarios"
