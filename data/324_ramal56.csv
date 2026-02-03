@@ -1,3 +1,5 @@
 timestamp,parada,ramal,eta,distancia,vehicle
 2026-02-03 18:18:11,Calle 622 y Colectora,324-5,15:02,800m,ABC123
 2026-02-03 18:18:11,Calle 622 y Colectora,324-6,15:07,1.2km,DEF456
+2026-02-03 19:39:19,Calle 622,324-5,16:02,850m,ABC123
+2026-02-03 19:39:19,Calle 622,324-6,16:08,1.3km,DEF456
