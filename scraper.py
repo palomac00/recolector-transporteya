@@ -1,49 +1,55 @@
 #!/usr/bin/env python3
 import requests
-from bs4 import BeautifulSoup
 import re
 import json
 
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Referer": "https://app.transporteya.com.ar/app/"
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.9",
+    "Referer": "https://app.transporteya.com.ar/app/",
+    "Sec-Fetch-Mode": "navigate"
 })
 
-def discover_real_endpoints():
-    """Descarga HTML inicial + busca patrones de API en JS"""
-    print("🔍 1. Cargando página principal...")
+def discover_api():
+    print("🔍 Cargando página principal...")
     resp = session.get("https://app.transporteya.com.ar/app/")
     
-    # Busca URLs de API en el HTML/JS inline
-    soup = BeautifulSoup(resp.text, 'html.parser')
-    scripts = soup.find_all('script')
+    if resp.status_code != 200:
+        print(f"❌ Error página principal: {resp.status_code}")
+        return
     
-    api_urls = []
-    for script in scripts:
-        if script.string:
-            # Patrones comunes de fetch/API calls
-            urls = re.findall(r'["\'](/api/[a-zA-Z0-9/?=&-]*)["\']', script.string)
-            api_urls.extend(urls)
+    # Busca TODAS las URLs internas posibles
+    patterns = [
+        r'["\'](/[^"\']*\b(?:api|ws|graphql|line|stop|vehicle)[^"\']*)["\']',
+        r'fetch\(["\']([^"\']+)["\']',
+        r'"/([^"]+324[^"]*)"',
+        r'"/line/(\d+)/[^"]*"'
+    ]
     
-    # Busca en el main.js (desde tu Google Drive)
-    print("🔍 2. Analizando main.dab66abd.js...")
-    js_content = ""  # Aquí irían los fetch reales del JS
+    urls = []
+    for pattern in patterns:
+        matches = re.findall(pattern, resp.text, re.IGNORECASE)
+        urls.extend(matches)
     
-    print("📋 URLs API encontradas:")
-    for url in set(api_urls):
-        print(f"  → {url}")
-        test_url(url)
+    # URLs únicas limpias
+    api_urls = list(set([u for u in urls if any(x in u.lower() for x in ['api','line','stop','324','vehicle'])]))
     
-def test_url(path):
-    """Testea cada URL encontrada"""
-    url = f"https://app.transporteya.com.ar{path}"
-    print(f"🧪 Testing {url}...")
-    resp = session.get(url)
-    print(f"   Status: {resp.status_code} | Size: {len(resp.text)}")
-    if resp.status_code == 200 and len(resp.text) > 100:
-        print(f"   ✅ POSIBLE ENDPOINT: {resp.text[:200]}...")
+    print(f"\n📋 {len(api_urls)} URLs candidatas encontradas:")
+    for i, url in enumerate(api_urls[:10], 1):  # Solo primeras 10
+        print(f"{i}. {url}")
+        test_api(f"https://app.transporteya.com.ar{url}")
+    
+    print("\n🔥 Copia las URLs que den Status 200 arriba!")
+
+def test_api(url):
+    try:
+        resp = session.get(url, timeout=10)
+        print(f"   Status: {resp.status_code} | Len: {len(resp.text)}")
+        if resp.status_code == 200:
+            print(f"   ✅ POSIBLE: {resp.text[:100]}...")
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
 
 if __name__ == "__main__":
-    discover_real_endpoints()
+    discover_api()
