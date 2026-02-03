@@ -7,20 +7,26 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # ← ESTO ARREGLA EL 403
+      contents: write
     steps:
     - uses: actions/checkout@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # ← Token con permisos
-
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
     - uses: actions/setup-python@v5
-      with: python-version: '3.11'
-      
-    - run: pip install requests
-    - run: mkdir -p data
-    - run: python scraper.py
-      
-    - uses: stefanzweifel/git-auto-commit-action@v5
       with:
-        commit_message: "Update 324 ramal56 Calle 622"
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: pip install requests
+      
+    - name: Create data & scrape
+      run: |
+        mkdir -p data
+        python scraper.py
+        
+    - name: Commit CSV
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: 'Update 324 ramal56 Calle 622'
         file_pattern: data/*
