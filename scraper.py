@@ -1,72 +1,49 @@
 #!/usr/bin/env python3
 import requests
-import csv
-import json
-import time
-from datetime import datetime
+from bs4 import BeautifulSoup
 import re
+import json
 
-BASE_URL = "https://app.transporteya.com.ar"
 session = requests.Session()
 session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Referer": "https://app.transporteya.com.ar/app/",
-    "Origin": "https://app.transporteya.com.ar"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Referer": "https://app.transporteya.com.ar/app/"
 })
 
-def safe_json(resp):
-    """Evita JSONDecodeError - debuggea primero"""
-    print(f"Status: {resp.status_code}")
-    print(f"Headers Content-Type: {resp.headers.get('content-type', 'N/A')}")
-    print(f"Response preview: {resp.text[:300]}...")
+def discover_real_endpoints():
+    """Descarga HTML inicial + busca patrones de API en JS"""
+    print("🔍 1. Cargando página principal...")
+    resp = session.get("https://app.transporteya.com.ar/app/")
     
-    if resp.status_code != 200:
-        print(f"❌ Error HTTP {resp.status_code}")
-        return None
+    # Busca URLs de API en el HTML/JS inline
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    scripts = soup.find_all('script')
     
-    if 'application/json' not in resp.headers.get('content-type', ''):
-        print("❌ No es JSON")
-        return None
+    api_urls = []
+    for script in scripts:
+        if script.string:
+            # Patrones comunes de fetch/API calls
+            urls = re.findall(r'["\'](/api/[a-zA-Z0-9/?=&-]*)["\']', script.string)
+            api_urls.extend(urls)
     
-    try:
-        return resp.json()
-    except:
-        print("❌ JSON inválido")
-        return None
-
-def test_endpoints():
-    """Prueba TODOS los endpoints posibles"""
-    endpoints = [
-        "/api/lines?q=324",
-        "/api/search?q=324", 
-        "/api/lineas/324",
-        "/api/line/324",
-        "/api/routes/324"
-    ]
+    # Busca en el main.js (desde tu Google Drive)
+    print("🔍 2. Analizando main.dab66abd.js...")
+    js_content = ""  # Aquí irían los fetch reales del JS
     
-    for endpoint in endpoints:
-        print(f"\n🧪 Probando: {BASE_URL}{endpoint}")
-        resp = session.get(BASE_URL + endpoint)
-        data = safe_json(resp)
-        if data:
-            print(f"✅ FUNCIONA! {len(data)} items")
-            print(json.dumps(data, indent=2)[:500])
-            return data
-    return None
-
-def scrape_324():
-    print("🔍 Descubriendo endpoints reales...")
+    print("📋 URLs API encontradas:")
+    for url in set(api_urls):
+        print(f"  → {url}")
+        test_url(url)
     
-    # 1. Buscar líneas 324
-    lines_data = test_endpoints()
-    if not lines_data:
-        print("❌ No se encontraron endpoints de líneas")
-        return
-    
-    # 2. TODO: extraer stops desde lines_data y filtrar ramal 5/6
-    print("✅ Endpoints encontrados - revisar output arriba")
-    print("\n📋 Próximo paso: copiar el endpoint que funcionó + buscar 'stops' en Network tab")
+def test_url(path):
+    """Testea cada URL encontrada"""
+    url = f"https://app.transporteya.com.ar{path}"
+    print(f"🧪 Testing {url}...")
+    resp = session.get(url)
+    print(f"   Status: {resp.status_code} | Size: {len(resp.text)}")
+    if resp.status_code == 200 and len(resp.text) > 100:
+        print(f"   ✅ POSIBLE ENDPOINT: {resp.text[:200]}...")
 
 if __name__ == "__main__":
-    scrape_324()
+    discover_real_endpoints()
